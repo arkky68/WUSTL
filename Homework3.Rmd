@@ -1,0 +1,165 @@
+---
+title: "Homework3_AY"
+author: "Andrea Yang"
+date: "2025-03-03"
+output: html_document
+---
+
+## Introduction
+
+In this analysis, I construct and examine networks using gene expression data from individuals diagnosed with LUAD and LUSC . The dataset consists of patients (rows) and genes (columns), where each value represents gene expression levels. Using R packages such as readxl for data import, ggplot2 and ggnetwork for visualization, and igraph for graph analysis, I generate two networks based on Q-values of 400 and 1000 to establish patient similarity through a distance matrix. Isolated nodes are removed, and the better-structured network is selected for further analysis, including hub identification, degree distribution histogram, and graph density calculation to assess connectivity and subtype separation. The methodology follows the concepts from lecture notes ("6_Network_Analysis_part2 (1).html") and was further refined using ChatGPT and R Studio documentation.By evaluating the structure and density of the network, this study seeks to determine whether patient connectivity patterns effectively differentiate between LUAD and LUSC.
+
+## Process
+
+#### 1. Loading Packages and Data
+
+```{r 1}
+library(ggnetwork)
+library(ggplot2)
+library(readxl)
+library(igraph)
+exp.data <- read_excel("/Users/andreayyng/Downloads/BMIDS HW 3.xlsx", sheet = 1)
+exp.data <- as.data.frame(lapply(exp.data, function(x) as.numeric(as.character(x))))
+exp.data <- exp.data[, colSums(is.na(exp.data)) == 0]  
+dist_matrix <- as.matrix(dist(t(exp.data)))
+```
+
+#### 2. Using the following R packages [ggnetwork, ggplot2] construct a set of 2 networks with the following Q-values [400, 1000]. In both networks remove isolated nodes. Determine which network you believe is the most informative, write a justification for your selection, and use that network for the remainder of the homework steps 3-5.
+
+##### Q = 400
+
+```{r 2}
+my.graph <- graph.empty(n = ncol(exp.data), directed = FALSE)
+V(my.graph)$name <- colnames(exp.data)
+Q <- 400
+for (i in 1:(ncol(exp.data) - 1)) {
+  for (j in (i + 1):ncol(exp.data)) {
+    if (dist_matrix[i, j] < Q) {
+      my.graph <- add_edges(my.graph, c(i, j))
+    }
+  }
+}
+
+n <- ggnetwork(my.graph)
+n$subtype <- sub("^(LUAD|LUSC)_\\d+$", "\\1", n$name)
+
+head(n)
+set.seed(1234)
+c.palatte <- c("#CC79A7","#0072B2","#E69F00","#56B4E9","#009E73","#D55E00")
+isolated <- which(degree(my.graph)==0)
+new.graph <- delete.vertices(my.graph, isolated)
+new.color <- sub("^(LUAD|LUSC)_\\d+$", "\\1", ggnetwork(new.graph)$name)
+
+ggplot(ggnetwork(new.graph),
+       aes(x, y, xend = xend, yend = yend)) +
+  geom_edges(aes(color = new.color), alpha = 0.25, curvature = 0.1) +
+  geom_nodes(aes(color = new.color), size = 1) +
+  theme_blank() +
+  theme(legend.position = "bottom") +
+  scale_colour_manual(values = c.palatte)
+
+```
+
+##### Q = 1000
+
+```{r 3}
+my.graph_1000 <- graph.empty(n = ncol(exp.data), directed = FALSE)
+V(my.graph_1000)$name <- colnames(exp.data)
+
+Q <- 1000
+
+for (i in 1:(ncol(exp.data) - 1)) {
+  for (j in (i + 1):ncol(exp.data)) {
+    if (dist_matrix[i, j] < Q) {
+      my.graph_1000 <- add_edges(my.graph_1000, c(i, j))
+    }
+  }
+}
+
+n <- ggnetwork(my.graph_1000)
+n$subtype <- sub("^(LUAD|LUSC)_\\d+$", "\\1", n$name)
+
+head(n)
+
+
+isolated_1000 <- which(degree(my.graph_1000)==0)
+new.graph_1000 <- delete.vertices(my.graph_1000, isolated_1000)
+new.color <- sub("^(LUAD|LUSC)_\\d+$", "\\1", ggnetwork(new.graph_1000)$name)
+
+ggplot(ggnetwork(new.graph_1000),
+       aes(x, y, xend = xend, yend = yend)) +
+  geom_edges(aes(color = new.color), alpha = 0.25, curvature = 0.1) +
+  geom_nodes(aes(color = new.color), size = 1) +
+  theme_blank() +
+  theme(legend.position = "bottom") +
+  scale_colour_manual(values = c.palatte)
+```
+
+#### Justification
+
+I believe the Q = 1000 network is the most informative for further analysis as it provides a more connected and structured representation of patient relationships compared to the Q = 400 network, which appears highly fragmented. The Q = 1000 network exhibits clearer clustering, whereas the Q = 400 network contains many small, disconnected groups that limit meaningful interpretation. The increased connectivity in the Q = 1000 network ensures that important relationships between patients are preserved.
+
+### For the following question, Q = 1000 is used
+
+#### 3.Identify the node that is the largest hub and identify the patient ID associated with the node, the disease label and the degrees of the hub node.
+
+```{r 4}
+degree_values <- degree(new.graph_1000)
+max_degree <- max(degree_values)
+hub_nodes <- names(degree_values)[which(degree_values == max_degree)]  
+hub_info <- data.frame(
+  Patient_ID = hub_nodes,
+  Disease_Label = sub("^(LUAD|LUSC)_\\d+$", "\\1", hub_nodes),  
+  Degree = max_degree
+)
+print(hub_info)
+```
+
+#### 4. Generate a histogram showing the distribution of degrees across all nodes in your network. Please provide a written interpretation of the distribution and explain how are you would interpret the plot.
+
+```{r 5}
+hist(degree(new.graph_1000))
+abline(v=c(25), col='red', lwd=2)
+```
+
+#### Interpretation
+The histogram of node degrees provides insights into the distribution of connections among patients in the network. The x-axis represents the degree, or the number of connections each node has, while the y-axis indicates the frequency of nodes with a given degree. The distribution is right-skewed, meaning most nodes have relatively low degrees(isolate relatively), while a smaller number of nodes have significantly higher degrees. This pattern suggests that the network follows a scale-free structure, where a few highly connected hub nodes play a central role in linking many other nodes, while the majority have fewer connections. This type of distribution is commonly observed in biological and social networks, indicating the presence of key patients who exhibit stronger similarities in gene expression. The existence of highly connected nodes may suggest shared molecular patterns among certain patients, which could be useful for identifying subgroups within LUAD and LUSC.
+
+
+#### 5. Calculate the total graph density and the density within both subtypes (luad, lusc). Based on these calculations, please write a discussion section or you discuss how informative you believe this network is based on its structure and density. In addition please describe if you believe this network is useful in distinguishing between the two cancer subtypes and why.
+
+```{r 6}
+
+total_density <- edge_density(new.graph_1000)  
+
+
+network_data <- ggnetwork(new.graph_1000)
+network_data$subtype <- sub("^(LUAD|LUSC)_\\d+$", "\\1", network_data$name)
+
+luad_nodes <- network_data$name[network_data$subtype == "LUAD"]
+lusc_nodes <- network_data$name[network_data$subtype == "LUSC"]
+
+luad_nodes <- luad_nodes[luad_nodes %in% V(new.graph_1000)$name]
+lusc_nodes <- lusc_nodes[lusc_nodes %in% V(new.graph_1000)$name]
+
+luad_graph <- induced_subgraph(new.graph_1000, luad_nodes)
+lusc_graph <- induced_subgraph(new.graph_1000, lusc_nodes)
+
+luad_density <- edge_density(luad_graph)
+lusc_density <- edge_density(lusc_graph)
+
+cat("Total Network Density:", total_density, "\n")
+cat("LUAD Subtype Density:", luad_density, "\n")
+cat("LUSC Subtype Density:", lusc_density, "\n")
+```
+
+## Disucssion/Conclusion
+The total graph density is 0.054, indicating a relatively sparse overall structure. Within the subtypes, LUAD has a density of 0.060, while LUSC has a higher density of 0.082. This suggests that LUSC patients tend to form a more interconnected network compared to LUAD patients, as they share stronger similarities in their gene expression profiles. The difference in density between the two subtypes implies that LUSC patients exhibit more intra-group connectivity, while LUAD patients have a slightly more dispersed structure. These finding indicatse that the higher density within the LUSC subtype suggests that patients in this group may have more consistent molecular characteristics, which could make them easier to classify. In contrast, the slightly lower density in LUAD implies greater variability in connections, potentially reflecting more different gene expression patterns. While the network structure does not provide a definitive separation between the two subtypes, as the differnece is only about 0.02, the observed differences in connectivity could still be valuable for classification purposes. 
+
+## Appendix
+
+This analysis was performed under the following environment.
+
+```{r appendix}
+sessionInfo()
+```
