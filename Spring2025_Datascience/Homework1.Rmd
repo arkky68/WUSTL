@@ -1,0 +1,120 @@
+---
+title: "Homework1_AY"
+author: "Andrea Yang"
+output:
+  html_document:
+    df_print: paged
+date: "2025-02-03"
+---
+
+------------------------------------------------------------------------
+
+# Introduction
+
+Clustering analysis is used in unsupervised learning, used to group similar data points based on their underlying structure. The analysis begins with data preprocessing, first checking for duplicate values before transforming the dataset into a BinaryMatrix. After this, the scree plot and Auer-Gervini plot are utilized to determine the optimal number of clusters. Once the best k is identified, hierarchical clustering is performed using Euclidean, Manhattan, and Canberra distance metrics while the quality of clustering is assessed using Silhouette-Width to determine the most suitable approach. For visualization, UMAP and t-SNE are applied to project high-dimensional data into lower-dimensional space.
+
+------------------------------------------------------------------------
+
+# Analysis
+
+## Load the file to dataset
+
+```{r 1}
+library(Mercator)
+library(readxl)
+df <- read_excel("/Users/andreayyng/Downloads/BMIDS Homework 1.xlsx")
+df <- as.matrix(as.data.frame(df[,-1]))
+df_binary<- BinaryMatrix(df)
+df_binary <- removeDuplicates(df_binary)
+set.seed(21348) #in the booklet of the package
+df_binary <- threshLGF(df_binary, cutoff=0.3)
+Delta <- df_binary@thresher@delta
+summary(df_binary)
+```
+
+## Determine *k*
+
+### Scree Plot
+
+```{r 2}
+pts <- screeplot(df_binary@reaper, xlim=c(0,30))
+abline(v=pts[df_binary@reaper@pcdim], col="forestgreen", lwd=2)
+abline(v=pts[8], col="orange", lwd=2)
+abline(v=pts[9], col="blue", lwd=2)
+
+```
+
+### Auer-Gervini Plot
+
+```{r 3}
+
+plot(df_binary@reaper@ag, ylim=c(0, 30))
+abline(h=df_binary@reaper@pcdim, col="forestgreen", lwd=2)
+abline(h=8, col = 'red', lwd = 2)
+abline(h=9, col = 'blue',lwd = 2)
+abline(h=16, col = "yellow", lwd = 2)
+
+```
+
+```{r 3.1}
+df_binary@reaper@pcdim
+df_binary@reaper@nGroups
+kk<- 8
+```
+
+#### We will set the
+
+## Hierarchical Clustering
+
+### Euclidean Distance
+
+```{r 4.1}
+e.Vis <- Mercator(df_binary, "euclid", "hclust", K=kk)
+plot(e.Vis, view = "hclust", main = "hc:Euclidean")
+barplot(e.Vis,main = "Silhouette-Width: euclidean")
+```
+
+### Manhattan Distance
+
+```{r 4.2}
+m.Vis <- Mercator(df_binary, "manhattan", "hclust", K=kk)
+plot(m.Vis, view = "hclust", main = "hc: Manhattan")
+barplot(m.Vis, main = "Silhouette-Width: manhattan")
+```
+
+### Canberra Distance
+
+```{r 4.3}
+c.Vis <- Mercator(df_binary, "canberra", "hclust", K=kk)
+plot(c.Vis, view = "hclust", main = "hc: Canberra Distance")
+barplot(c.Vis,main = "Silhouette-Width: canberra")
+```
+
+## Visualization
+
+### UMAP Plot
+
+```{r 5}
+c_V.Vis <- addVisualization(c.Vis, "umap")
+plot(c_V.Vis, view = 'umap', main = "UMAP")
+
+```
+
+### t_SNE Plot
+
+```{r 6}
+c_t.Vis <- addVisualization(c.Vis, "tsne")
+plot(c_t.Vis, view = "tsne", main="t-SNE")
+```
+
+# Discussion
+
+The scree plot indicates that the fraction of variance explained does not change significantly after k = 8, suggesting that selecting more than eight clusters does not provide substantial additional information. Similarly, the Auer-Gervini plot shows that theta stabilizes at k = 8, reinforcing this choice as the optimal number of clusters. When evaluating clustering performance using Silhouette-Width, Canberra distance achieves the lowest value of 0.08121, compared to Manhattan at 0.09063 and Euclidean at 0.1135. A lower Silhouette-Width suggests that Canberra distance results in the most well-separated and cohesive clusters. The UMAP plot shows clear cluster separation, with distinct groups forming in different areas of the space. Compared to t-SNE, UMAP produces more distinctly separated clusters with less overlap. In contrast, t-SNE results in some degree of mixing, where each group contains a few dots from other clusters, indicating slight inter-cluster overlap.
+
+# Appendix
+
+This analysis was performed under the following environment
+
+```{r appendix}
+{sessionInfo()}
+```
